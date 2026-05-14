@@ -1,0 +1,46 @@
+<view class="container">
+  <view class="logo">🔮</view>
+  <view class="title">StudyLamp</view>
+  <view class="subtitle">智能学习监控</view>
+
+  <!-- 多孩子列表 -->
+  <view wx:if="{{children.length > 0}}" class="card">
+    <view class="card-label">我的孩子</view>
+    <view
+      wx:for="{{children}}"
+      wx:key="id"
+      class="child-row {{item.device_id === activeDeviceId ? 'child-active' : ''}}"
+      bindtap="switchChild"
+      data-id="{{item.device_id}}"
+    >
+      <view class="child-avatar">👧</view>
+      <view class="child-info">
+        <view class="child-name">{{item.name}}</view>
+        <view class="child-device">{{item.device_id}}</view>
+      </view>
+      <view wx:if="{{item.device_id === activeDeviceId}}" class="child-active-badge">当前</view>
+      <view
+        class="child-remove"
+        catchtap="removeChild"
+        data-childid="{{item.id}}"
+        data-name="{{item.name}}"
+      >✕</view>
+    </view>
+    <button class="btn btn-ghost" style="margin-top:12rpx" bindtap="goToBind">+ 添加孩子</button>
+  </view>
+
+  <!-- 未绑定 -->
+  <view wx:elif="{{!bound}}" class="card">
+    <view class="card-label">尚未绑定设备</view>
+    <view class="hint">请先绑定孩子的学习设备</view>
+    <button class="btn btn-primary" bindtap="goToBind">绑定设备</button>
+  </view>
+
+  <!-- 已绑定（服务器未连接时的降级显示） -->
+  <view wx:elif="{{bound}}" class="card bound-card">
+    <view class="card-label">已绑定设备</view>
+    <view class="device-id">{{activeDeviceId}}</view>
+    <button class="btn btn-primary" bindtap="goToReport">查看今日报告</button>
+    <button class="btn btn-ghost" bindtap="goToBind">添加孩子</button>
+  </view>
+</view>

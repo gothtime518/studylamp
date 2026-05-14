@@ -1,0 +1,41 @@
+<view class="container">
+  <view class="page-title">本周学习趋势</view>
+
+  <view wx:if="{{loading}}" class="loading">加载中…</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+
+  <block wx:else>
+    <!-- 柱状图 -->
+    <view class="card chart-card">
+      <view class="card-label">学习时长（分钟）</view>
+      <view class="bar-chart">
+        <view wx:for="{{days}}" wx:key="date" class="bar-col">
+          <view class="bar-label-top">{{item.study_minutes}}</view>
+          <view class="bar-wrap">
+            <view
+              class="bar-fill {{item.study_minutes > 0 ? 'bar-active' : 'bar-empty'}}"
+              style="height: {{item.study_minutes > 0 ? (item.study_minutes / maxMinutes * 160) : 4}}rpx"
+            ></view>
+          </view>
+          <view class="bar-date">{{item.date.slice(5)}}</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 每日明细 -->
+    <view wx:for="{{days}}" wx:key="date" class="card day-card">
+      <view class="day-header">
+        <view class="day-date">{{item.date}}</view>
+        <view class="day-minutes green">{{item.study_minutes}} 分钟</view>
+      </view>
+      <view class="day-stats">
+        <view class="stat-chip {{item.posture_bad_count > 0 ? 'yellow' : 'green'}}">
+          坐姿 {{item.posture_bad_count}} 次
+        </view>
+        <view class="stat-chip {{item.phone_count > 0 ? 'red' : 'green'}}">
+          手机 {{item.phone_count}} 次
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

@@ -1,0 +1,44 @@
+<view class="container">
+  <view class="page-title">今日学习报告</view>
+  <view class="date">{{date}}</view>
+
+  <!-- 实时状态 -->
+  <view wx:if="{{wsConnected && realtimeState}}" class="card realtime-card">
+    <view class="card-label">📡 实时状态</view>
+    <view class="realtime-state">{{realtimeState}}</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">加载中…</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+
+  <block wx:elif="{{report}}">
+    <view class="metrics-grid">
+      <view class="metric-card">
+        <view class="metric-num green">{{report.study_minutes}}</view>
+        <view class="metric-label">学习分钟</view>
+      </view>
+      <view class="metric-card">
+        <view class="metric-num {{report.posture_bad_count > 3 ? 'red' : 'yellow'}}">
+          {{report.posture_bad_count}}
+        </view>
+        <view class="metric-label">坐姿提醒</view>
+      </view>
+      <view class="metric-card">
+        <view class="metric-num {{report.phone_count > 0 ? 'red' : 'green'}}">
+          {{report.phone_count}}
+        </view>
+        <view class="metric-label">玩手机</view>
+      </view>
+    </view>
+
+    <view wx:if="{{report.ai_summary}}" class="card summary-card">
+      <view class="card-label">🤖 AI 学习建议</view>
+      <view class="summary-text">{{report.ai_summary}}</view>
+    </view>
+
+    <view class="card">
+      <view class="card-label">记录事件</view>
+      <view class="event-count">共 {{report.event_count}} 条</view>
+    </view>
+  </block>
+</view>

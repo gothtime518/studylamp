@@ -1,0 +1,36 @@
+<view class="container">
+  <view class="page-title">学习积分</view>
+
+  <view wx:if="{{loading}}" class="loading">加载中…</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+
+  <block wx:else>
+    <!-- 总积分 -->
+    <view class="card points-hero">
+      <view class="points-total">{{summary.total_points}}</view>
+      <view class="points-label">累计积分</view>
+      <view class="points-row">
+        <view class="points-sub">今日 +{{summary.today_points}}</view>
+        <view class="points-sub">连续 {{summary.streak}} 天 🔥</view>
+        <view class="points-sub">累计 {{summary.active_days}} 天</view>
+      </view>
+    </view>
+
+    <!-- 徽章 -->
+    <view wx:if="{{summary.badges.length > 0}}" class="card">
+      <view class="card-label">🏅 已解锁徽章</view>
+      <view class="badges-grid">
+        <view wx:for="{{summary.badges}}" wx:key="id" class="badge-item">
+          <view class="badge-icon">{{item.icon}}</view>
+          <view class="badge-name">{{item.name}}</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 未解锁提示 -->
+    <view wx:else class="card">
+      <view class="card-label">🏅 徽章</view>
+      <view class="hint">坚持学习解锁更多徽章！</view>
+    </view>
+  </block>
+</view>

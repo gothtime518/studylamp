@@ -1,0 +1,29 @@
+<view class="container">
+  <view class="page-title">作业分析</view>
+
+  <view wx:if="{{loading}}" class="loading">加载中…</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+
+  <block wx:elif="{{homeworks.length === 0}}">
+    <view class="empty">暂无作业分析记录</view>
+  </block>
+
+  <block wx:else>
+    <view
+      wx:for="{{homeworks}}"
+      wx:key="id"
+      class="card hw-card"
+      bindtap="goToDetail"
+      data-id="{{item.id}}"
+    >
+      <view class="hw-header">
+        <view class="subject-badge">{{item.subject}}</view>
+        <view wx:if="{{item.score_estimate}}" class="score {{item.score_estimate >= 80 ? 'green' : item.score_estimate >= 60 ? 'yellow' : 'red'}}">
+          {{item.score_estimate}}分
+        </view>
+      </view>
+      <view class="hw-summary">{{item.summary}}</view>
+      <view class="hw-time">{{item.created_at}}</view>
+    </view>
+  </block>
+</view>

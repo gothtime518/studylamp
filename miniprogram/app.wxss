@@ -1,0 +1,369 @@
+page {
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: -apple-system, sans-serif;
+}
+
+.container {
+  padding: 32rpx 24rpx;
+}
+
+.logo {
+  font-size: 80rpx;
+  text-align: center;
+  margin-top: 60rpx;
+}
+
+.title {
+  font-size: 52rpx;
+  font-weight: 700;
+  text-align: center;
+  background: linear-gradient(135deg, #818cf8, #34d399);
+  -webkit-background-clip: text;
+  color: transparent;
+  margin-top: 16rpx;
+}
+
+.subtitle {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 28rpx;
+  margin-bottom: 48rpx;
+}
+
+.card {
+  background: #1e293b;
+  border-radius: 20rpx;
+  padding: 32rpx;
+  margin: 24rpx 0;
+  border: 1rpx solid #334155;
+}
+
+.card-label {
+  color: #94a3b8;
+  font-size: 24rpx;
+  margin-bottom: 12rpx;
+}
+
+.device-id {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #818cf8;
+  margin-bottom: 24rpx;
+}
+
+.hint {
+  color: #94a3b8;
+  font-size: 26rpx;
+  margin-bottom: 24rpx;
+}
+
+.btn {
+  width: 100%;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  padding: 20rpx 0;
+  margin-top: 16rpx;
+}
+
+.btn-primary {
+  background: #6366f1;
+  color: white;
+  border: none;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #94a3b8;
+  border: 1rpx solid #334155;
+}
+
+.page-title {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #818cf8;
+  margin-bottom: 8rpx;
+}
+
+.date {
+  color: #94a3b8;
+  font-size: 26rpx;
+  margin-bottom: 32rpx;
+}
+
+.metrics-grid {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 24rpx;
+}
+
+.metric-card {
+  flex: 1;
+  background: #1e293b;
+  border-radius: 16rpx;
+  padding: 24rpx 16rpx;
+  text-align: center;
+  border: 1rpx solid #334155;
+}
+
+.metric-num {
+  font-size: 52rpx;
+  font-weight: 700;
+  margin-bottom: 8rpx;
+}
+
+.metric-label {
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+
+.green { color: #34d399; }
+.yellow { color: #fbbf24; }
+.red { color: #f87171; }
+
+.summary-card { border-left: 4rpx solid #6366f1; }
+
+.summary-text {
+  font-size: 28rpx;
+  line-height: 1.8;
+  color: #e2e8f0;
+}
+
+.event-count {
+  font-size: 32rpx;
+  color: #60a5fa;
+}
+
+.loading, .error {
+  text-align: center;
+  padding: 60rpx;
+  color: #94a3b8;
+}
+
+.error { color: #f87171; }
+
+.input {
+  background: #0f172a;
+  border: 1rpx solid #334155;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  color: #e2e8f0;
+  font-size: 28rpx;
+  width: 100%;
+  margin-bottom: 16rpx;
+}
+
+/* ── 周报 ── */
+.chart-card { padding-bottom: 16rpx; }
+
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 200rpx;
+  margin-top: 16rpx;
+}
+
+.bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.bar-label-top {
+  font-size: 20rpx;
+  color: #94a3b8;
+  margin-bottom: 4rpx;
+}
+
+.bar-wrap {
+  width: 32rpx;
+  display: flex;
+  align-items: flex-end;
+  height: 160rpx;
+}
+
+.bar-fill {
+  width: 100%;
+  border-radius: 4rpx 4rpx 0 0;
+  min-height: 4rpx;
+}
+
+.bar-active { background: #6366f1; }
+.bar-empty  { background: #334155; }
+
+.bar-date {
+  font-size: 20rpx;
+  color: #94a3b8;
+  margin-top: 8rpx;
+}
+
+.day-card { padding: 20rpx 24rpx; }
+
+.day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.day-date { font-size: 26rpx; color: #94a3b8; }
+.day-minutes { font-size: 28rpx; font-weight: 600; }
+
+.day-stats { display: flex; gap: 12rpx; }
+
+.stat-chip {
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 20rpx;
+  background: rgba(255,255,255,0.05);
+}
+
+/* ── 积分 ── */
+.points-hero {
+  text-align: center;
+  padding: 40rpx 24rpx;
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  border-color: #6366f1;
+}
+
+.points-total {
+  font-size: 96rpx;
+  font-weight: 700;
+  color: #818cf8;
+  line-height: 1;
+}
+
+.points-label {
+  color: #94a3b8;
+  font-size: 26rpx;
+  margin: 8rpx 0 20rpx;
+}
+
+.points-row {
+  display: flex;
+  justify-content: center;
+  gap: 24rpx;
+}
+
+.points-sub { font-size: 24rpx; color: #94a3b8; }
+
+.badges-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 12rpx;
+}
+
+.badge-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 120rpx;
+}
+
+.badge-icon { font-size: 48rpx; }
+.badge-name { font-size: 20rpx; color: #94a3b8; margin-top: 4rpx; text-align: center; }
+
+/* ── 作业 ── */
+.hw-card { cursor: pointer; }
+
+.hw-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.subject-badge {
+  background: rgba(99,102,241,0.2);
+  color: #818cf8;
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.score {
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.hw-summary {
+  font-size: 26rpx;
+  color: #e2e8f0;
+  margin-bottom: 8rpx;
+}
+
+.hw-time { font-size: 22rpx; color: #475569; }
+
+.hw-title-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 24rpx;
+}
+
+.error-item, .suggestion-item {
+  font-size: 26rpx;
+  color: #e2e8f0;
+  line-height: 1.8;
+  padding: 4rpx 0;
+}
+
+/* ── 实时状态 ── */
+.realtime-card { border-color: #34d399; }
+
+.realtime-state {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #34d399;
+  margin-top: 8rpx;
+}
+
+/* ── 多孩子首页 ── */
+.child-row {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #334155;
+  gap: 16rpx;
+}
+
+.child-row:last-of-type { border-bottom: none; }
+
+.child-active { background: rgba(99,102,241,0.08); border-radius: 12rpx; padding: 16rpx 12rpx; }
+
+.child-avatar { font-size: 44rpx; }
+
+.child-info { flex: 1; }
+
+.child-name { font-size: 28rpx; font-weight: 600; color: #e2e8f0; }
+
+.child-device { font-size: 22rpx; color: #475569; margin-top: 4rpx; }
+
+.child-active-badge {
+  font-size: 20rpx;
+  background: rgba(99,102,241,0.2);
+  color: #818cf8;
+  padding: 4rpx 12rpx;
+  border-radius: 20rpx;
+}
+
+.child-remove {
+  font-size: 28rpx;
+  color: #475569;
+  padding: 8rpx 12rpx;
+}
+
+.empty {
+  text-align: center;
+  padding: 80rpx;
+  color: #475569;
+  font-size: 28rpx;
+}
+
+/* ── 多孩子首页 ── */
+.bound-card { border-color: #34d399; }
+

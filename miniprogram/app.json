@@ -1,0 +1,33 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/bind/bind",
+    "pages/report/report",
+    "pages/weekly/weekly",
+    "pages/homework/homework",
+    "pages/homework/detail",
+    "pages/points/points"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#0f172a",
+    "navigationBarTitleText": "StudyLamp",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0f172a"
+  },
+  "tabBar": {
+    "backgroundColor": "#1e293b",
+    "borderStyle": "black",
+    "selectedColor": "#818cf8",
+    "color": "#94a3b8",
+    "list": [
+      { "pagePath": "pages/index/index",     "text": "首页" },
+      { "pagePath": "pages/report/report",   "text": "日报" },
+      { "pagePath": "pages/weekly/weekly",   "text": "周报" },
+      { "pagePath": "pages/homework/homework","text": "作业" },
+      { "pagePath": "pages/points/points",   "text": "积分" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

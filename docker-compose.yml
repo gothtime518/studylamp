@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - STUDYLAMP_DB=/data/studylamp.db
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - WECHAT_APP_ID=${WECHAT_APP_ID:-}
+      - WECHAT_APP_SECRET=${WECHAT_APP_SECRET:-}
+      - WECHAT_TEMPLATE_ALERT=${WECHAT_TEMPLATE_ALERT:-}
+      - WECHAT_TEMPLATE_DAILY=${WECHAT_TEMPLATE_DAILY:-}
+    volumes:
+      - studylamp_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  studylamp_data:

@@ -1,0 +1,29 @@
+{
+  "desc": "关于我们的小程序",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "pages/index/index"
+    },
+    {
+      "action": "allow",
+      "page": "pages/report/report"
+    },
+    {
+      "action": "allow",
+      "page": "pages/weekly/weekly"
+    },
+    {
+      "action": "allow",
+      "page": "pages/homework/homework"
+    },
+    {
+      "action": "allow",
+      "page": "pages/points/points"
+    },
+    {
+      "action": "disallow",
+      "page": "*"
+    }
+  ]
+}

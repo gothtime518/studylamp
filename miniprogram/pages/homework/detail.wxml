@@ -1,0 +1,30 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="loading">加载中…</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+
+  <block wx:elif="{{hw}}">
+    <view class="hw-title-row">
+      <view class="subject-badge">{{hw.subject}}</view>
+      <view wx:if="{{hw.score_estimate}}" class="score {{hw.score_estimate >= 80 ? 'green' : hw.score_estimate >= 60 ? 'yellow' : 'red'}}">
+        {{hw.score_estimate}} 分
+      </view>
+    </view>
+
+    <view class="card summary-card">
+      <view class="card-label">🤖 AI 总结</view>
+      <view class="summary-text">{{hw.summary}}</view>
+    </view>
+
+    <view wx:if="{{hw.errors.length > 0}}" class="card">
+      <view class="card-label">❌ 发现的问题</view>
+      <view wx:for="{{hw.errors}}" wx:key="index" class="error-item">• {{item}}</view>
+    </view>
+
+    <view wx:if="{{hw.suggestions.length > 0}}" class="card">
+      <view class="card-label">💡 建议</view>
+      <view wx:for="{{hw.suggestions}}" wx:key="index" class="suggestion-item">• {{item}}</view>
+    </view>
+
+    <view class="hw-time">分析时间：{{hw.created_at}}</view>
+  </block>
+</view>

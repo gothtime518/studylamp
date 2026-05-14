@@ -1,0 +1,9 @@
+rumps==0.4.0
+opencv-python==4.9.0.80
+mediapipe==0.10.14
+numpy==1.26.4
+websockets==16.0
+
+# 可选：作业 OCR（Phase 3）
+# paddleocr==2.7.3
+# paddlepaddle==2.6.1
