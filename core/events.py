@@ -5,7 +5,10 @@ from datetime import datetime, timezone
 from config import DATA_DIR, EVENTS_FILE
 
 
-_lock = threading.Lock()
+# 保护 EVENTS_FILE 的读/写/重写。sync.py 重写文件时也必须持有这把锁，
+# 否则同步线程 os.replace 会覆盖掉采集线程刚 append 的事件（数据丢失）。
+# 用可重入锁，避免同一线程内嵌套加锁时死锁。
+file_lock = threading.RLock()
 
 
 def _ensure_dir():
@@ -20,7 +23,7 @@ def write_event(event_type: str, details: dict):
         "details": details,
         "synced": False,
     }
-    with _lock:
+    with file_lock:
         with open(EVENTS_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(event, ensure_ascii=False) + "\n")
     return event
@@ -32,7 +35,7 @@ def read_today_events() -> list:
         return []
     today = datetime.now().date().isoformat()
     events = []
-    with _lock:
+    with file_lock:
         with open(EVENTS_FILE, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -61,7 +64,9 @@ def today_summary() -> dict:
         elif t == "session_end" and session_start:
             start = datetime.fromisoformat(session_start)
             end = datetime.fromisoformat(e["timestamp"])
-            study_minutes += (end - start).seconds // 60
+            # 用 total_seconds()：timedelta.seconds 只取 0–86399 秒、丢弃 .days，
+            # 跨天 session 会被严重少算。max(0, ...) 防止时钟回拨导致的负时长。
+            study_minutes += int(max(0, (end - start).total_seconds()) // 60)
             session_start = None
         elif t == "posture_bad":
             posture_bad_count += 1

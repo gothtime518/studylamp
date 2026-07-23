@@ -3,6 +3,7 @@ import threading
 import tempfile
 import time
 import os
+import sys
 import cv2
 
 
@@ -25,8 +26,10 @@ class PreviewWindow:
         self._running = True
         self._thread = threading.Thread(target=self._write_frames, daemon=True)
         self._thread.start()
+        # 用 sys.executable 而非字面量 "python"：venv / 树莓派上 "python" 可能
+        # 指向系统 Python2 或没装 cv2 的解释器，子进程会 import 失败。
         self._proc = subprocess.Popen(
-            ["python", "-c", _VIEWER_SCRIPT, self._frame_path],
+            [sys.executable, "-c", _VIEWER_SCRIPT, self._frame_path],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

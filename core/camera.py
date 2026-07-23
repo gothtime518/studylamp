@@ -6,15 +6,15 @@ import numpy as np
 from core.posture import PostureAnalyzer, PostureResult
 from core.activity import ActivityClassifier, ActivityResult
 from core.events import write_event
-from config import (
-    CAMERA_INDEX,
-    FRAME_WIDTH,
-    FRAME_HEIGHT,
-    SAMPLE_INTERVAL_ACTIVE,
-    SAMPLE_INTERVAL_IDLE,
-    CONFIRM_COUNT,
-    DATA_DIR,
-)
+# 用 `import config` 而非 `from config import X`：运行时读 config.X 才能拿到
+# 热更新（ConfigWatcher.reload）后的最新阈值/间隔。`from ... import` 会在导入时
+# 把值拷成本地名字，reload 后不再变化（原来的热更新其实不生效）。
+import config
+# 这几个是启动时一次性读取、之后不需要热更新的，直接 import 即可。
+from config import CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT, DATA_DIR
+
+# 作业拍照防抖间隔（秒）：切到 studying 后最短多久才允许再拍一次
+HOMEWORK_CAPTURE_INTERVAL = 120
 
 
 def _push_state_bg(state: str):
@@ -41,7 +41,8 @@ class CameraLoop:
 
         # 最新帧（供预览窗口读取）
         self._frame_lock = threading.Lock()
-        self._latest_frame = None          # BGR, with overlays
+        self._latest_frame = None          # BGR, with overlays（预览用）
+        self._latest_raw_frame = None      # BGR, 无标注原始帧（作业拍照/OCR 用）
         self._latest_posture: PostureResult = PostureResult()
         self._latest_activity: ActivityResult = ActivityResult()
 
@@ -66,26 +67,29 @@ class CameraLoop:
         self._thread.start()
 
     def stop(self):
+        # 只负责发停止信号 + 等线程退出。MediaPipe / 摄像头的关闭放在 _loop 的
+        # finally 里，由循环线程自己收尾——避免这里在 join 超时（线程还卡在
+        # cap.read/analyze）时就 close 掉对象，导致循环线程 use-after-close 崩溃。
         self._stop_event.set()
         if self._thread:
             self._thread.join(timeout=5)
+            if self._thread.is_alive():
+                print("[camera] 停止超时，采集线程仍在运行")
         if self._session_active:
             write_event("session_end", {})
             self._session_active = False
-        if self._posture:
-            self._posture.close()
-        if self._activity:
-            self._activity.close()
-        self._posture = None
-        self._activity = None
 
     def register_homework_callback(self, callback):
         """注册作业拍照回调，activity 切换到 studying 时触发"""
         self._homework_callback = callback
 
     def capture_homework_frame(self) -> str | None:
-        """手动触发拍照，保存到本地，返回图片路径"""
-        frame = self.get_latest_frame()
+        """手动触发拍照，保存到本地，返回图片路径。
+
+        用未标注的原始帧（_latest_raw_frame），而非带骨骼线/状态文字的预览帧——
+        否则骨架涂鸦会干扰 OCR，上传到服务器的作业图上也会有叠加线条。
+        """
+        frame = self.get_latest_raw_frame()
         if frame is None:
             return None
         os.makedirs(DATA_DIR, exist_ok=True)
@@ -95,8 +99,14 @@ class CameraLoop:
         return path
 
     def get_latest_frame(self):
+        """带标注的预览帧（骨骼线 + 状态文字）"""
         with self._frame_lock:
             return self._latest_frame.copy() if self._latest_frame is not None else None
+
+    def get_latest_raw_frame(self):
+        """未标注的原始帧（作业拍照 / OCR 用）"""
+        with self._frame_lock:
+            return self._latest_raw_frame.copy() if self._latest_raw_frame is not None else None
 
     def get_current_state(self) -> str:
         act = self._latest_activity.state
@@ -125,32 +135,54 @@ class CameraLoop:
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
         if not cap.isOpened():
+            # 打开失败要让上层知道，否则 UI 永远停在「启动中…」
+            print("[camera] 无法打开摄像头，检查 CAMERA_INDEX 或摄像头是否被占用")
+            cap.release()
+            if self.on_state_change:
+                self.on_state_change("absent")
             return
 
         last_sample_time = 0
 
-        while not self._stop_event.is_set():
-            ret, frame = cap.read()
-            if not ret:
-                time.sleep(0.1)
-                continue
+        # try/finally 确保任何异常路径下摄像头句柄和 MediaPipe 都被释放。
+        # 否则一旦循环内抛错，摄像头句柄会被占住，树莓派上往往需要重启才能恢复。
+        try:
+            while not self._stop_event.is_set():
+                ret, frame = cap.read()
+                if not ret:
+                    time.sleep(0.1)
+                    continue
 
-            now = time.time()
-            person_present = self._latest_posture.present
-            interval = SAMPLE_INTERVAL_ACTIVE if person_present else SAMPLE_INTERVAL_IDLE
+                now = time.time()
+                person_present = self._latest_posture.present
+                # 运行时读 config，支持热更新
+                interval = (config.SAMPLE_INTERVAL_ACTIVE if person_present
+                            else config.SAMPLE_INTERVAL_IDLE)
 
-            if now - last_sample_time >= interval:
-                last_sample_time = now
-                self._analyze(frame)
+                # 先保存未标注的原始帧（作业拍照用），再叠加标注做预览
+                with self._frame_lock:
+                    self._latest_raw_frame = frame.copy()
 
-            # 叠加骨骼线和状态文字
-            annotated = self._annotate(frame.copy())
-            with self._frame_lock:
-                self._latest_frame = annotated
+                if now - last_sample_time >= interval:
+                    last_sample_time = now
+                    try:
+                        self._analyze(frame)
+                    except Exception as e:
+                        # 单帧分析失败不应让整个采集线程崩溃
+                        print(f"[camera] analyze error: {e}")
 
-            time.sleep(0.03)  # ~30fps 预览刷新
+                # 叠加骨骼线和状态文字
+                annotated = self._annotate(frame.copy())
+                with self._frame_lock:
+                    self._latest_frame = annotated
 
-        cap.release()
+                time.sleep(0.03)  # ~30fps 预览刷新
+        finally:
+            cap.release()
+            if self._posture:
+                self._posture.close()
+            if self._activity:
+                self._activity.close()
 
     def _analyze(self, frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -177,10 +209,10 @@ class CameraLoop:
                     "to": activity.state,
                     "confidence": round(activity.confidence, 2),
                 })
-            # 切换到 studying 时触发作业拍照（间隔 120s 防抖）
+            # 切换到 studying 时触发作业拍照（防抖）
             if (activity.state == "studying"
                     and self._homework_callback
-                    and time.time() - self._last_homework_capture > 120):
+                    and time.time() - self._last_homework_capture > HOMEWORK_CAPTURE_INTERVAL):
                 path = self.capture_homework_frame()
                 if path:
                     self._last_homework_capture = time.time()
@@ -191,10 +223,10 @@ class CameraLoop:
                     ).start()
             self._last_activity_state = activity.state
 
-        # 坐姿异常（3 次确认）
+        # 坐姿异常（N 次确认，运行时读 config 支持热更新）
         if posture.issues:
             self._posture_bad_count += 1
-            if self._posture_bad_count >= CONFIRM_COUNT:
+            if self._posture_bad_count >= config.CONFIRM_COUNT:
                 write_event("posture_bad", {
                     "issues": posture.issues,
                     "confidence": round(posture.confidence, 2),
@@ -203,10 +235,10 @@ class CameraLoop:
         else:
             self._posture_bad_count = max(0, self._posture_bad_count - 1)
 
-        # 玩手机（3 次确认）
+        # 玩手机（N 次确认）
         if activity.state == "using_phone":
             self._phone_count += 1
-            if self._phone_count >= CONFIRM_COUNT:
+            if self._phone_count >= config.CONFIRM_COUNT:
                 write_event("phone_detected", {
                     "confidence": round(activity.confidence, 2),
                 })

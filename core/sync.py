@@ -5,6 +5,7 @@ import os
 import urllib.request
 import urllib.error
 from config import EVENTS_FILE, DATA_DIR
+from core.events import file_lock
 
 SYNC_INTERVAL = 300
 SERVER_URL = os.environ.get("STUDYLAMP_SERVER", "http://localhost:8000")
@@ -62,17 +63,19 @@ class CloudSync:
         if not os.path.exists(EVENTS_FILE):
             return []
         pending = []
-        with open(EVENTS_FILE, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    e = json.loads(line)
-                    if not e.get("synced", False):
-                        pending.append(e)
-                except json.JSONDecodeError:
-                    continue
+        # 持锁读，避免与 write_event 的 append 交错读到半行
+        with file_lock:
+            with open(EVENTS_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        e = json.loads(line)
+                        if not e.get("synced", False):
+                            pending.append(e)
+                    except json.JSONDecodeError:
+                        continue
         return pending
 
     def _upload(self, events: list) -> dict:
@@ -98,22 +101,28 @@ class CloudSync:
             return {"synced": 0, "failed": len(events)}
 
     def _mark_synced(self, synced_events: list):
-        """重写 JSONL，将已同步事件标记 synced=true"""
+        """重写 JSONL，将已同步事件标记 synced=true。
+
+        整个「读 → 改 → os.replace」必须在 file_lock 内原子完成：否则采集线程
+        在此期间 append 到旧文件的新事件，会被 os.replace 覆盖而永久丢失。
+        用 (timestamp, type) 组合作为匹配键，比单用 timestamp 更不易误伤同秒事件。
+        """
         if not os.path.exists(EVENTS_FILE):
             return
-        synced_ts = {e["timestamp"] for e in synced_events}
+        synced_keys = {(e.get("timestamp"), e.get("type")) for e in synced_events}
         tmp_path = EVENTS_FILE + ".tmp"
-        with open(EVENTS_FILE, "r", encoding="utf-8") as fin, \
-             open(tmp_path, "w", encoding="utf-8") as fout:
-            for line in fin:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    e = json.loads(line)
-                    if e.get("timestamp") in synced_ts:
-                        e["synced"] = True
-                    fout.write(json.dumps(e, ensure_ascii=False) + "\n")
-                except json.JSONDecodeError:
-                    fout.write(line + "\n")
-        os.replace(tmp_path, EVENTS_FILE)
+        with file_lock:
+            with open(EVENTS_FILE, "r", encoding="utf-8") as fin, \
+                 open(tmp_path, "w", encoding="utf-8") as fout:
+                for line in fin:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        e = json.loads(line)
+                        if (e.get("timestamp"), e.get("type")) in synced_keys:
+                            e["synced"] = True
+                        fout.write(json.dumps(e, ensure_ascii=False) + "\n")
+                    except json.JSONDecodeError:
+                        fout.write(line + "\n")
+            os.replace(tmp_path, EVENTS_FILE)

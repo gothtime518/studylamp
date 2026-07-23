@@ -2,11 +2,11 @@ from dataclasses import dataclass, field
 from typing import List
 import mediapipe as mp
 import numpy as np
+# 运行时读 config.X 支持热更新；置信度仅在 __init__ 用一次，直接 import 即可。
+import config
 from config import (
     POSE_MIN_DETECTION_CONFIDENCE,
     POSE_MIN_TRACKING_CONFIDENCE,
-    HEAD_FORWARD_THRESHOLD,
-    SHOULDER_UNEVEN_THRESHOLD,
 )
 
 mp_pose = mp.solutions.pose
@@ -72,23 +72,25 @@ class PostureAnalyzer:
         # ── 1. 头部前倾 ────────────────────────────────────────
         # 鼻子 Y 与肩膀中点 Y 的差值（归一化，Y 向下为正）
         head_drop = nose.y - shoulder_mid_y
-        if head_drop > HEAD_FORWARD_THRESHOLD:
+        if head_drop > config.HEAD_FORWARD_THRESHOLD:
             issues.append("head_forward")
-            confidences.append(min(1.0, head_drop / (HEAD_FORWARD_THRESHOLD * 2)))
+            confidences.append(min(1.0, head_drop / (config.HEAD_FORWARD_THRESHOLD * 2)))
 
         # ── 2. 肩膀不平 ────────────────────────────────────────
         shoulder_diff = abs(l_shoulder.y - r_shoulder.y)
-        if shoulder_diff > SHOULDER_UNEVEN_THRESHOLD:
+        if shoulder_diff > config.SHOULDER_UNEVEN_THRESHOLD:
             issues.append("shoulder_uneven")
-            confidences.append(min(1.0, shoulder_diff / (SHOULDER_UNEVEN_THRESHOLD * 2)))
+            confidences.append(min(1.0, shoulder_diff / (config.SHOULDER_UNEVEN_THRESHOLD * 2)))
 
         # ── 3. 颈部侧倾（头歪向一侧）──────────────────────────
-        # 鼻子 X 偏离肩膀中点 X，用肩宽归一化
+        # 鼻子 X 偏离肩膀中点 X，用肩宽归一化后 neck_tilt 已是「相对肩宽的比例」，
+        # 直接与阈值常量比较即可。（旧代码把阈值又除了一次 shoulder_width，
+        # 等于二次归一化，导致判定随人离摄像头远近漂移。）
         if shoulder_width > 0.01:
             neck_tilt = abs(nose.x - shoulder_mid_x) / shoulder_width
-            if neck_tilt > NECK_TILT_THRESHOLD / max(shoulder_width, 0.01):
+            if neck_tilt > NECK_TILT_THRESHOLD:
                 issues.append("neck_tilt")
-                confidences.append(min(1.0, neck_tilt * 2))
+                confidences.append(min(1.0, neck_tilt / (NECK_TILT_THRESHOLD * 2)))
 
         # ── 4. 驼背（耳朵前移）────────────────────────────────
         # 耳朵可见时：耳朵 Y 坐标接近或低于肩膀 Y（说明头往前探）

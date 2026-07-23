@@ -1,4 +1,5 @@
 import os
+import sys
 
 # 采样间隔（秒）
 SAMPLE_INTERVAL_ACTIVE = 5      # 有人在场
@@ -13,7 +14,23 @@ SHOULDER_UNEVEN_THRESHOLD = 0.04  # 左右肩高度差比例
 PHONE_HAND_Y_THRESHOLD = 0.45   # 手腕 Y 坐标高于此值视为举手（玩手机）
 
 # 数据存储
-DATA_DIR = os.path.expanduser("~/Library/Application Support/StudyLamp")
+# 优先用环境变量 STUDYLAMP_DATA_DIR；否则按平台选择默认目录：
+#   macOS → ~/Library/Application Support/StudyLamp
+#   Linux/树莓派 → ~/.local/share/studylamp（遵循 XDG_DATA_HOME）
+#   其他 → ~/.studylamp
+def _default_data_dir() -> str:
+    env = os.environ.get("STUDYLAMP_DATA_DIR")
+    if env:
+        return os.path.expanduser(env)
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Application Support/StudyLamp")
+    if sys.platform.startswith("linux"):
+        base = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+        return os.path.join(base, "studylamp")
+    return os.path.expanduser("~/.studylamp")
+
+
+DATA_DIR = _default_data_dir()
 EVENTS_FILE = os.path.join(DATA_DIR, "events.jsonl")
 
 # 摄像头

@@ -142,6 +142,39 @@ def _trigger_alerts(device_id: str, events: list):
                 _alert_last_sent[key] = now
 
 
+def _aggregate_events(rows) -> dict:
+    """把某段时间的事件行聚合成统计摘要。
+
+    统一了原先散落在日报/周报/积分/自动日报 4 处的重复逻辑。修正两点：
+    1. 用 total_seconds() 而非 .seconds —— 后者丢弃天数，跨天 session 会严重少算。
+    2. 先按 timestamp 排序 —— 否则 DB 不保证返回顺序，session_start/end 可能乱序配对，
+       max(0, ...) 再兜底负时长（乱序/时钟回拨）。
+    """
+    rows = sorted(rows, key=lambda r: r.timestamp)
+    study_minutes = 0
+    posture_bad = 0
+    phone_count = 0
+    session_start = None
+    for r in rows:
+        if r.event_type == "session_start":
+            session_start = r.timestamp
+        elif r.event_type == "session_end" and session_start:
+            start = datetime.fromisoformat(session_start)
+            end = datetime.fromisoformat(r.timestamp)
+            study_minutes += int(max(0, (end - start).total_seconds()) // 60)
+            session_start = None
+        elif r.event_type == "posture_bad":
+            posture_bad += 1
+        elif r.event_type == "activity_change" and r.details.get("to") == "using_phone":
+            phone_count += 1
+    return {
+        "study_minutes": study_minutes,
+        "posture_bad_count": posture_bad,
+        "phone_count": phone_count,
+        "event_count": len(rows),
+    }
+
+
 def _auto_daily_report(device_id: str):
     """session_end 后自动生成日报、计算积分、推送微信"""
     from server.models import engine as _engine
@@ -153,29 +186,8 @@ def _auto_daily_report(device_id: str):
             StudyEvent.device_id == device_id,
             StudyEvent.timestamp.startswith(today),
         ).all()
-        study_minutes = 0
-        posture_bad = 0
-        phone_count = 0
-        session_start = None
-        for r in rows:
-            if r.event_type == "session_start":
-                session_start = r.timestamp
-            elif r.event_type == "session_end" and session_start:
-                start = datetime.fromisoformat(session_start)
-                end = datetime.fromisoformat(r.timestamp)
-                study_minutes += (end - start).seconds // 60
-                session_start = None
-            elif r.event_type == "posture_bad":
-                posture_bad += 1
-            elif r.event_type == "activity_change" and r.details.get("to") == "using_phone":
-                phone_count += 1
-
-        report = {
-            "study_minutes": study_minutes,
-            "posture_bad_count": posture_bad,
-            "phone_count": phone_count,
-            "event_count": len(rows),
-        }
+        report = _aggregate_events(rows)
+        study_minutes = report["study_minutes"]
         summary = generate_daily_summary(report)
 
         child = db.query(Child).filter(Child.device_id == device_id).first()
@@ -230,33 +242,9 @@ def daily_report(date: str, device_id: str, db: Session = Depends(get_session)):
         StudyEvent.timestamp.startswith(date),
     ).all()
 
-    study_minutes = 0
-    posture_bad = 0
-    phone_count = 0
-    session_start = None
-
-    for r in rows:
-        if r.event_type == "session_start":
-            session_start = r.timestamp
-        elif r.event_type == "session_end" and session_start:
-            start = datetime.fromisoformat(session_start)
-            end = datetime.fromisoformat(r.timestamp)
-            study_minutes += (end - start).seconds // 60
-            session_start = None
-        elif r.event_type == "posture_bad":
-            posture_bad += 1
-        elif r.event_type == "activity_change":
-            if r.details.get("to") == "using_phone":
-                phone_count += 1
-
-    report = {
-        "date": date,
-        "device_id": device_id,
-        "study_minutes": study_minutes,
-        "posture_bad_count": posture_bad,
-        "phone_count": phone_count,
-        "event_count": len(rows),
-    }
+    report = _aggregate_events(rows)
+    report["date"] = date
+    report["device_id"] = device_id
     report["ai_summary"] = generate_daily_summary(report)
     return report
 
@@ -407,27 +395,12 @@ def weekly_report(device_id: str, db: Session = Depends(get_session)):
             StudyEvent.device_id == device_id,
             StudyEvent.timestamp.startswith(day),
         ).all()
-        study_minutes = 0
-        posture_bad = 0
-        phone_count = 0
-        session_start = None
-        for r in rows:
-            if r.event_type == "session_start":
-                session_start = r.timestamp
-            elif r.event_type == "session_end" and session_start:
-                start = datetime.fromisoformat(session_start)
-                end = datetime.fromisoformat(r.timestamp)
-                study_minutes += (end - start).seconds // 60
-                session_start = None
-            elif r.event_type == "posture_bad":
-                posture_bad += 1
-            elif r.event_type == "activity_change" and r.details.get("to") == "using_phone":
-                phone_count += 1
+        agg = _aggregate_events(rows)
         days_data.append({
             "date": day,
-            "study_minutes": study_minutes,
-            "posture_bad_count": posture_bad,
-            "phone_count": phone_count,
+            "study_minutes": agg["study_minutes"],
+            "posture_bad_count": agg["posture_bad_count"],
+            "phone_count": agg["phone_count"],
         })
     return {"device_id": device_id, "days": days_data}
 
@@ -441,22 +414,10 @@ def calc_points(device_id: str, date: str, db: Session = Depends(get_session)):
         StudyEvent.device_id == device_id,
         StudyEvent.timestamp.startswith(date),
     ).all()
-    study_minutes = 0
-    posture_bad = 0
-    phone_count = 0
-    session_start = None
-    for r in rows:
-        if r.event_type == "session_start":
-            session_start = r.timestamp
-        elif r.event_type == "session_end" and session_start:
-            start = datetime.fromisoformat(session_start)
-            end = datetime.fromisoformat(r.timestamp)
-            study_minutes += (end - start).seconds // 60
-            session_start = None
-        elif r.event_type == "posture_bad":
-            posture_bad += 1
-        elif r.event_type == "activity_change" and r.details.get("to") == "using_phone":
-            phone_count += 1
+    agg = _aggregate_events(rows)
+    study_minutes = agg["study_minutes"]
+    posture_bad = agg["posture_bad_count"]
+    phone_count = agg["phone_count"]
 
     # 计算连续学习天数
     streak = _calc_streak(device_id, date, db)
