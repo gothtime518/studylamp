@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudyLamp 技术选型调研报告</title>
+<style>
+  :root{
+    --bg:#0f1720; --card:#1a2432; --ink:#e6edf3; --muted:#9fb0c0;
+    --line:#2b3a4d; --accent:#4ea1ff; --good:#3fb950; --warn:#e3b341; --bad:#f85149;
+    --chip:#243247;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;}
+  .wrap{max-width:940px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:28px;margin:0 0 6px}
+  h2{font-size:22px;margin:44px 0 12px;padding-top:14px;border-top:1px solid var(--line)}
+  h3{font-size:18px;margin:26px 0 10px;color:var(--accent)}
+  .sub{color:var(--muted);margin:0 0 24px}
+  p{margin:10px 0}
+  ul{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  code{background:#0b1119;padding:2px 6px;border-radius:5px;font-size:.9em;color:#9fd0ff}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:16px 0}
+  .tldr{border-left:4px solid var(--accent)}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:var(--chip);color:var(--ink);font-weight:600}
+  td small{color:var(--muted)}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12.5px;font-weight:600}
+  .p-free{background:rgba(63,185,80,.15);color:var(--good);border:1px solid rgba(63,185,80,.4)}
+  .p-pay{background:rgba(227,179,65,.15);color:var(--warn);border:1px solid rgba(227,179,65,.4)}
+  .p-no{background:rgba(248,81,73,.15);color:var(--bad);border:1px solid rgba(248,81,73,.4)}
+  .rec{background:rgba(78,161,255,.1);border:1px solid rgba(78,161,255,.35);border-radius:10px;padding:12px 16px;margin:14px 0}
+  .rec b{color:var(--accent)}
+  .good{color:var(--good)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  .toc{columns:2;column-gap:30px}
+  .toc a{color:var(--accent);text-decoration:none;display:block;padding:3px 0}
+  .toc a:hover{text-decoration:underline}
+  .note{font-size:13.5px;color:var(--muted);margin-top:6px}
+  .big{font-size:20px;font-weight:700}
+  .flow{background:#0b1119;border:1px solid var(--line);border-radius:10px;padding:14px 18px;font-size:14.5px;overflow-x:auto}
+  hr{border:0;border-top:1px solid var(--line);margin:30px 0}
+  .foot{color:var(--muted);font-size:13px;margin-top:40px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>StudyLamp 技术选型调研报告</h1>
+<p class="sub">儿童学习监控台灯 · 面向个人开发者 · 调研时点 2026-08 · 价格以厂商官网当日为准</p>
+
+<div class="card tldr">
+  <p class="big">一句话结论</p>
+  <p>整个项目<b class="good">起步几乎零成本</b>,能当天让家人用起来:坐姿识别本地免费跑,作业批改先用免费的国产大模型,数据库继续用 SQLite,后端用<b>微信云托管</b>可绕开最麻烦的备案。真正要花钱和花时间的只在"公开发布"那一步。</p>
+</div>
+
+<div class="card">
+  <b>目录</b>
+  <div class="toc">
+    <a href="#arch">0. 先搞懂:项目的三块 + 两层 AI</a>
+    <a href="#ai">1. AI 选型(最关键)</a>
+    <a href="#backend">2. 服务端部署与价格</a>
+    <a href="#db">3. 数据库选型</a>
+    <a href="#mp">4. 微信小程序部署与价格</a>
+    <a href="#decision">5. 给你的决策建议(分阶段)</a>
+    <a href="#cost">6. 总成本一览表</a>
+  </div>
+</div>
+
+<!-- ============ 0 ============ -->
+<h2 id="arch">0. 先搞懂:项目的三块 + 两层 AI</h2>
+<p>StudyLamp 不是"一个程序",而是三个部件,分别住在三个地方:</p>
+<div class="flow">
+① 采集端(树莓派,孩子书桌) ──上传事件──▶ ② 后端(云) ◀──拉数据── ③ 小程序(家长手机)
+</div>
+<p>而其中<b>"AI"其实是完全不同的两层</b>,这是你最需要先理解的决策点 —— 尤其你问的"本地要不要 AI 识别视频流,还是纯 OCR 就行":</p>
+<table>
+  <tr><th></th><th>第一层:坐姿监控</th><th>第二层:作业批改</th></tr>
+  <tr><td><b>干什么</b></td><td>判断低头/驼背/玩手机</td><td>认题目、判对错、给建议</td></tr>
+  <tr><td><b>输入</b></td><td>摄像头<b>连续视频流</b></td><td>偶尔拍的<b>几张照片</b></td></tr>
+  <tr><td><b>技术</b></td><td>人体姿态识别(MediaPipe)</td><td>视觉大模型 VLM</td></tr>
+  <tr><td><b>跑在哪</b></td><td class="good">本地树莓派 · 免费</td><td class="warn">云端 API · 按量付费</td></tr>
+</table>
+<div class="rec">
+  <b>关键澄清:纯 OCR 做不了坐姿监控。</b> OCR 只能把图片里的<b>文字</b>变成文本,它根本不知道人有没有低头驼背。判断坐姿是"认人体骨骼关键点(肩、颈、眼、手腕)",和 OCR 是两套毫不相关的技术。所以坐姿这层<b>必须</b>用姿态识别模型,不是 OCR、也不用云端大模型。
+</div>
+
+<!-- ============ 1 ============ -->
+<h2 id="ai">1. AI 选型(最关键)</h2>
+
+<h3>第一层 · 坐姿监控 → 本地 MediaPipe,免费</h3>
+<ul>
+  <li><b>用什么:</b>Google MediaPipe(Pose 33 个人体关键点 + Hands 21 个手部关键点),Apache-2.0 <span class="pill p-free">开源免费</span>,树莓派可直接 <code>pip install mediapipe</code> 用 CPU 跑。</li>
+  <li><b>够不够:</b>够。坐姿是"慢变量",每 1-2 秒抽 1 帧检测就足够,持续几秒判定为低头/离席/玩手机才告警。这个采样率<b>纯 CPU 完全够用</b>。</li>
+  <li><b>要不要买 AI 加速器(Hailo AI HAT+,约 500-800 元):</b><span class="bad">MVP 不用买</span>。它只在"高帧率 + 多任务(再叠人脸/物体识别)"时才有意义,对单纯坐姿监控是过度配置。</li>
+  <li><b>隐私铁律:</b>原始视频<b>绝不上传</b>,只上传"告警事件 + 缩略图"。既省带宽,更是儿童数据合规的底线。</li>
+</ul>
+
+<h3>第二层 · 作业批改 → 国产视觉大模型(不用 Gemini)</h3>
+<p>你说"服务端不一定要 Gemini" —— <b class="good">完全正确</b>。调研结论也是不推荐 Gemini:</p>
+<ul>
+  <li><span class="pill p-no">不推荐 Gemini</span> 国内大陆无法直接访问(需海外服务器/代理);更重要的是把<b>儿童影像</b>发给境外 AI 有数据出境合规风险。</li>
+</ul>
+<p>主推<b>国产多模态大模型</b>(价格已尽量核实,标*的建议下单前上官网确认当日价):</p>
+<table>
+  <tr><th>模型</th><th>输入(元/千token)</th><th>输出(元/千token)</th><th>免费额度</th><th>定位</th></tr>
+  <tr><td><b>智谱 GLM-4V-Flash</b></td><td class="good">免费</td><td class="good">免费</td><td>长期免费</td><td><span class="pill p-free">MVP 首选</span></td></tr>
+  <tr><td><b>百度 ERNIE-4.5-Turbo-VL</b></td><td>0.003</td><td>0.009</td><td>实名送 20 元券</td><td><span class="pill p-pay">正式首选</span></td></tr>
+  <tr><td>智谱 GLM-4.5V*</td><td>约 0.002–0.01</td><td>约 0.006–0.03</td><td>新用户赠额</td><td>正式备选</td></tr>
+  <tr><td>阿里 Qwen-VL-Plus*</td><td>约 0.0015</td><td>约 0.0045</td><td>限时送百万 token</td><td>备选</td></tr>
+  <tr><td>字节 豆包 vision*</td><td>约 0.0015–0.003</td><td>约 0.006–0.009</td><td>新用户送额</td><td>备选</td></tr>
+</table>
+<div class="rec">
+  <b>不需要单独 OCR。</b> 现代视觉大模型自带认字能力,直接把作业照片喂给它,一次调用就能"识别题目 + 判对错 + 给建议"。单独做 OCR 反而多一次调用、丢失版面信息、还多花钱。
+</div>
+<div class="rec">
+  <b>成本小到可忽略:</b> 一个孩子每天拍 5 次作业 ≈ 每月 150 次,月成本 —— GLM-4V-Flash <b class="good">0 元</b>;ERNIE/Qwen/豆包 <b class="good">约 1-3 元</b>。姿态那层永久免费。
+</div>
+<p class="note">代码现在写的是 Gemini,选定国产模型后可平滑替换(接口可插拔),改动很小。</p>
+
+<!-- ============ 2 ============ -->
+<h2 id="backend">2. 服务端部署与价格</h2>
+<div class="rec">
+  <b>重磅结论:微信云托管(CloudRun)可能免掉"备案"这道最耗时的坎。</b> 小程序通过微信内部通道直连后端,走微信分配的默认域名,<b>不需要你自己备案</b>;还原生支持 Docker + FastAPI + WebSocket(你项目正好都用),调用自动带 openid 省一套登录鉴权,没流量时缩容到 0。只有你想绑"自己的公网域名"时才需备案。
+</div>
+<p>三档方案:</p>
+<table>
+  <tr><th>方案</th><th>做法</th><th>备案</th><th>年成本估算</th><th>适合</th></tr>
+  <tr>
+    <td class="good"><b>A 最省事 ⭐</b><br>微信云托管</td>
+    <td>Docker 部署,微信生态直连</td>
+    <td class="good">免备案</td>
+    <td>约 0–240 元<br><small>免费额度+19.9/月起</small></td>
+    <td>最快上线、不想折腾</td>
+  </tr>
+  <tr>
+    <td><b>B 最省钱(首年)</b><br>国内轻量服务器自建</td>
+    <td>阿里云 2核2G 新用户 68 元/年 + 域名 + Let's Encrypt 免费证书</td>
+    <td class="warn">需备案 2-4 周</td>
+    <td>首年约 70–110 元<br><small>续费约 350–500</small></td>
+    <td>愿折腾、要完整控制权</td>
+  </tr>
+  <tr>
+    <td><b>C 最稳妥</b><br>腾讯云 2核4G</td>
+    <td>2核4G + .com 域名 + 备案</td>
+    <td class="warn">需备案</td>
+    <td>约 1100 元/年</td>
+    <td>长期稳定、配置留余量</td>
+  </tr>
+</table>
+<ul>
+  <li><b>域名:</b>.com 约 85 元/年,.cn 约 38 元/年。</li>
+  <li><b>ICP 备案:</b>本身<b>免费</b>,但必须绑一台国内服务器,审核要 <b class="warn">2-4 周</b>(全项目最耗时环节)。海外服务器<b>无法</b>备案、也躲不过。</li>
+  <li><b>HTTPS 证书:</b>免费 DV 证书 / Let's Encrypt 完全够用,不用买。</li>
+  <li><span class="bad">海外 VPS 不推荐:</span>灰色地带、访问慢、WebSocket 实时性差,还有合规风险。用云托管同样免备案且更快。</li>
+</ul>
+
+<!-- ============ 3 ============ -->
+<h2 id="db">3. 数据库选型</h2>
+<div class="rec">
+  <b>现在用 SQLite 就是最优解,别动。</b> 你的数据量(单个/少数孩子、每天几百到几千条)对 SQLite 是"玩具级"负载,余量巨大。云托管数据库对这场景是杀鸡用牛刀(常驻起来月费奔着几百元去)。
+</div>
+<table>
+  <tr><th>阶段</th><th>用什么</th><th>成本</th></tr>
+  <tr><td>MVP / 自家用(现在)</td><td class="good"><b>SQLite</b> + 开 WAL + 单 worker</td><td>0 元</td></tr>
+  <tr><td>小范围分享</td><td>仍可 SQLite,出现 <code>database is locked</code> 再迁</td><td>0 元</td></tr>
+  <tr><td>多用户 / SaaS 化</td><td>同一台服务器自建 <b>PostgreSQL</b>(免费,几小时迁移)</td><td>0 元(只用服务器)</td></tr>
+  <tr><td>商业化 / 要 SLA</td><td>云托管 RDS / TDSQL-C</td><td>数百元/年起</td></tr>
+</table>
+<ul>
+  <li><b>现在要做的唯一优化:</b>开 WAL 模式(<code>PRAGMA journal_mode=WAL</code>)+ 保持单 worker,规避唯一的真实瓶颈"并发写锁"。这个我可以顺手帮你改。</li>
+  <li><b>备份:</b>每天 <code>sqlite3 .backup</code> 拷一份传对象存储(阿里云 OSS 0.12 元/GB/月),一年<b>几块钱</b>,且多半落在免费额度内 = 0 元。</li>
+  <li><b>迁移信号:</b>反复 <code>database is locked</code> / 要多 worker 写库 / 多机共享数据 / 从"1 个家庭"变"几十上百家庭并发"。</li>
+</ul>
+
+<!-- ============ 4 ============ -->
+<h2 id="mp">4. 微信小程序部署与价格</h2>
+<table>
+  <tr><th>项</th><th>结论</th></tr>
+  <tr><td>注册费</td><td class="good">个人主体注册 <b>0 元</b>。那 300 元是企业微信认证费,你用不到。</td></tr>
+  <tr><td>给家人用</td><td class="good">走<b>体验版,完全免审核</b>。个人号最多加 15 个体验成员(家人足够),扫二维码即用。</td></tr>
+  <tr><td>公开发布</td><td class="warn">要提交审核(1-7 个工作日,可能反复);要连自己后端域名就要备案。</td></tr>
+  <tr><td>域名备案</td><td class="warn">只要连自己的后端域名就绕不掉(除非用方案 A 微信云托管);免费但等 2-4 周。</td></tr>
+  <tr><td>合规提醒</td><td class="bad">涉及未成年人数据。建议定位为"<b>家长(监护人)使用的工具类</b>"应用,弱化"面向儿童教育",能降低类目门槛和法律风险(《未成年人网络保护条例》要求监护人同意)。</td></tr>
+</table>
+<div class="rec">
+  <b>省事路径:</b>体验版 + 微信云托管(免备案)→ 近乎 0 成本、当天让家人用上。有公开需求时再走备案 + 审核转正式版。
+</div>
+
+<!-- ============ 5 ============ -->
+<h2 id="decision">5. 给你的决策建议(分阶段)</h2>
+<h3>阶段一:让它先跑起来 / 自家用(推荐现在做)</h3>
+<ul>
+  <li>坐姿:<b>MediaPipe 本地跑</b>(免费,不买加速器)</li>
+  <li>作业批改:<b>智谱 GLM-4V-Flash</b>(免费),直接喂照片,不做 OCR</li>
+  <li>数据库:<b>SQLite</b>(开 WAL),继续用</li>
+  <li>后端:<b>微信云托管</b>(免备案)或先用你自己电脑本地联调</li>
+  <li>小程序:<b>体验版</b>,加家人为体验成员,免审核</li>
+  <li class="good">→ 总花费:接近 0 元,几天内能用</li>
+</ul>
+<h3>阶段二:公开发布(确认阶段一跑通后再做)</h3>
+<ul>
+  <li>作业批改换<b>付费国产模型</b>(ERNIE-4.5-Turbo-VL / GLM-4.5V),月成本个位数</li>
+  <li>若不用云托管:买国内轻量服务器 + 域名 + <b>ICP 备案</b>(2-4 周)</li>
+  <li>小程序配域名白名单 → 上传 → 提交审核 → 发布</li>
+  <li>补齐<b>安全鉴权</b>(见代码仓库 <code>docs/CODE-REVIEW-TODO.md</code> 第二批)</li>
+</ul>
+
+<!-- ============ 6 ============ -->
+<h2 id="cost">6. 总成本一览表</h2>
+<table>
+  <tr><th>服务</th><th>阶段一(自家用)</th><th>阶段二(公开)</th></tr>
+  <tr><td>坐姿识别(本地)</td><td class="good">0(MediaPipe)</td><td class="good">0</td></tr>
+  <tr><td>作业批改(云 AI)</td><td class="good">0(GLM-4V-Flash 免费)</td><td>约 1-3 元/月/孩子</td></tr>
+  <tr><td>数据库</td><td class="good">0(SQLite)</td><td class="good">0(SQLite/自建 PG)</td></tr>
+  <tr><td>后端服务器</td><td class="good">0(本地)或 ~20 元/月(云托管)</td><td>0-240 元/年(云托管)或 70-1100 元/年(自建)</td></tr>
+  <tr><td>域名 + 备案</td><td class="good">0(云托管免备案)</td><td>约 40-85 元/年 + 备案等 2-4 周</td></tr>
+  <tr><td>小程序</td><td class="good">0(体验版免审核)</td><td class="good">0(个人注册免费)</td></tr>
+  <tr><td>AI 加速器</td><td class="good">0(不买)</td><td class="good">0(除非要多任务)</td></tr>
+  <tr><td><b>合计</b></td><td class="good"><b>≈ 0 元,几天上线</b></td><td><b>约 100-500 元/年 + 备案 2-4 周</b></td></tr>
+</table>
+
+<div class="foot">
+  <p><b>时效与准确性说明:</b>价格为 2025-2026 年官方页面 / 中文社区检索数据,人民币计价。促销价(如服务器 68 元/年、38 元/年)多为<b>新用户首年</b>价,续费会涨。带 * 号的国产模型价格因官网价格页为动态渲染未能完全自动核实,下单前请上各厂商官网确认当日价。合规判断(未成年人数据、类目资质)建议向微信官方或专业人士最终核实。</p>
+  <p>已实时核实:Gemini 定价、百度 ERNIE-4.5-Turbo-VL 价、智谱 GLM-4V-Flash 免费、Raspberry Pi AI HAT+ 规格与价、阿里云 OSS/微信云托管精确费率。</p>
+  <p>本报告基于四路并行调研(小程序 / 服务端 / AI / 数据库)整理。相关代码待办见 <code>docs/CODE-REVIEW-TODO.md</code>,部署步骤见 <code>docs/DEPLOYMENT.md</code>。</p>
+</div>
+
+</div>
+</body>
+</html>

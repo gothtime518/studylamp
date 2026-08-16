@@ -23,31 +23,39 @@ LABEL_INV = {v: k for k, v in LABEL_MAP.items()}
 
 
 def extract_features(image_path: str) -> np.ndarray | None:
-    """用 MediaPipe Hands 提取 21 个手部关键点 (x,y,z) = 63 维特征"""
+    """用 MediaPipe Hands (Tasks API) 提取 21 个手部关键点 (x,y,z) = 63 维特征"""
     import cv2
     import mediapipe as mp
+    from mediapipe.tasks import python as mp_python
+    from mediapipe.tasks.python import vision
+    from core.mp_models import HAND_MODEL, ensure_model
 
-    mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(
-        max_num_hands=2,
-        min_detection_confidence=0.5,
+    ensure_model(HAND_MODEL)
+    options = vision.HandLandmarkerOptions(
+        base_options=mp_python.BaseOptions(model_asset_path=HAND_MODEL),
+        running_mode=vision.RunningMode.IMAGE,
+        num_hands=2,
+        min_hand_detection_confidence=0.5,
         min_tracking_confidence=0.5,
-        model_complexity=0,
+        min_hand_presence_confidence=0.5,
     )
+    hands = vision.HandLandmarker.create_from_options(options)
 
     img = cv2.imread(image_path)
     if img is None:
+        hands.close()
         return None
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    result = hands.process(rgb)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb))
+    result = hands.detect(mp_image)
     hands.close()
 
-    if not result.multi_hand_landmarks:
+    if not result.hand_landmarks:
         # 无手部 → 全零特征（代表 idle/absent）
         return np.zeros(63)
 
-    # 取第一只手的 21 个关键点
-    lm = result.multi_hand_landmarks[0].landmark
+    # 取第一只手的 21 个关键点（Tasks API 直接是关键点列表，无 .landmark）
+    lm = result.hand_landmarks[0]
     return np.array([[p.x, p.y, p.z] for p in lm]).flatten()
 
 

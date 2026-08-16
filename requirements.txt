@@ -1,9 +1,25 @@
-rumps==0.4.0
-opencv-python==4.9.0.80
-mediapipe==0.10.14
-numpy==1.26.4
-websockets==16.0
+# StudyLamp 采集端依赖（跨平台）
+#
+# 版本按平台/Python 版本自动选择：
+#   - macOS 开发机：一般是 Python ≤3.12
+#   - 树莓派最新系统（Trixie）：Python 3.13
+# 直接 `pip install -r requirements.txt` 即可，pip 会按下面的 marker 选对版本。
+
+# macOS 菜单栏应用（rumps 仅 macOS；树莓派/Linux 自动跳过，用 run_headless.py）
+rumps==0.4.0 ; sys_platform == "darwin"
+
+opencv-python
+numpy
+websockets
+
+# 姿态 / 手部识别：
+#   Python ≤3.12 → mediapipe 0.10.x（含旧 Solutions + 新 Tasks API）
+#   Python 3.13  → mediapipe 1.x（Google 删了 Solutions，仅 Tasks API；本项目已适配）
+# 代码统一走 Tasks API（见 core/posture.py、core/activity.py），两档版本都能跑。
+# Tasks API 需要的 .task 模型文件已随仓库打包在 models/ 目录，无需联网下载。
+mediapipe>=0.10,<0.11 ; python_version < "3.13"
+mediapipe>=1.0 ; python_version >= "3.13"
 
 # 可选：作业 OCR（Phase 3）
-# paddleocr==2.7.3
-# paddlepaddle==2.6.1
+# paddleocr
+# paddlepaddle

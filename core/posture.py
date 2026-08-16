@@ -1,6 +1,9 @@
 from dataclasses import dataclass, field
 from typing import List
+import cv2
 import mediapipe as mp
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision
 import numpy as np
 # 运行时读 config.X 支持热更新；置信度仅在 __init__ 用一次，直接 import 即可。
 import config
@@ -8,10 +11,18 @@ from config import (
     POSE_MIN_DETECTION_CONFIDENCE,
     POSE_MIN_TRACKING_CONFIDENCE,
 )
+from core.mp_models import POSE_MODEL, ensure_model
 
-mp_pose = mp.solutions.pose
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
+# ── Pose 关键点索引 ─────────────────────────────────────────────
+# mediapipe 1.0 的 Tasks API 不再暴露 PoseLandmark 枚举，直接用标准 33 点模型的
+# 固定索引（跨版本稳定）。参见 MediaPipe Pose landmark 定义。
+NOSE = 0
+LEFT_EYE = 2
+RIGHT_EYE = 5
+LEFT_EAR = 7
+RIGHT_EAR = 8
+LEFT_SHOULDER = 11
+RIGHT_SHOULDER = 12
 
 # 额外阈值（不放 config 避免过度配置）
 NECK_TILT_THRESHOLD = 0.06      # 头部左右偏移（颈部侧倾）
@@ -24,33 +35,35 @@ class PostureResult:
     present: bool = False
     issues: List[str] = field(default_factory=list)
     confidence: float = 0.0
-    landmarks: object = None
+    landmarks: object = None      # Tasks API：单人的 33 个关键点列表
 
 
 class PostureAnalyzer:
     def __init__(self):
-        self.pose = mp_pose.Pose(
-            min_detection_confidence=POSE_MIN_DETECTION_CONFIDENCE,
+        ensure_model(POSE_MODEL)
+        options = vision.PoseLandmarkerOptions(
+            base_options=mp_python.BaseOptions(model_asset_path=POSE_MODEL),
+            running_mode=vision.RunningMode.IMAGE,
+            num_poses=1,
+            min_pose_detection_confidence=POSE_MIN_DETECTION_CONFIDENCE,
             min_tracking_confidence=POSE_MIN_TRACKING_CONFIDENCE,
-            model_complexity=0,
+            min_pose_presence_confidence=0.5,
         )
+        self.pose = vision.PoseLandmarker.create_from_options(options)
 
     def analyze(self, rgb_frame) -> PostureResult:
-        results = self.pose.process(rgb_frame)
-        if not results.pose_landmarks:
+        mp_image = mp.Image(
+            image_format=mp.ImageFormat.SRGB,
+            data=np.ascontiguousarray(rgb_frame),
+        )
+        result = self.pose.detect(mp_image)
+        if not result.pose_landmarks:
             return PostureResult(present=False)
 
-        lm = results.pose_landmarks.landmark
+        # Tasks API 返回「每个人一组关键点」的列表；num_poses=1 只取第一个人。
+        lm = result.pose_landmarks[0]
         issues = []
         confidences = []
-
-        NOSE          = mp_pose.PoseLandmark.NOSE
-        LEFT_EAR      = mp_pose.PoseLandmark.LEFT_EAR
-        RIGHT_EAR     = mp_pose.PoseLandmark.RIGHT_EAR
-        LEFT_SHOULDER = mp_pose.PoseLandmark.LEFT_SHOULDER
-        RIGHT_SHOULDER= mp_pose.PoseLandmark.RIGHT_SHOULDER
-        LEFT_EYE      = mp_pose.PoseLandmark.LEFT_EYE
-        RIGHT_EYE     = mp_pose.PoseLandmark.RIGHT_EYE
 
         nose       = lm[NOSE]
         l_shoulder = lm[LEFT_SHOULDER]
@@ -63,7 +76,7 @@ class PostureAnalyzer:
         # 基础可见性检查
         if min(nose.visibility, l_shoulder.visibility, r_shoulder.visibility) < 0.5:
             return PostureResult(present=True, issues=[], confidence=0.5,
-                                 landmarks=results.pose_landmarks)
+                                 landmarks=lm)
 
         shoulder_mid_x = (l_shoulder.x + r_shoulder.x) / 2
         shoulder_mid_y = (l_shoulder.y + r_shoulder.y) / 2
@@ -117,17 +130,16 @@ class PostureAnalyzer:
             present=True,
             issues=issues,
             confidence=confidence,
-            landmarks=results.pose_landmarks,
+            landmarks=lm,
         )
 
     def draw(self, bgr_frame, landmarks):
-        if landmarks:
-            mp_drawing.draw_landmarks(
-                bgr_frame,
-                landmarks,
-                mp_pose.POSE_CONNECTIONS,
-                landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style(),
-            )
+        # Tasks API 无内置绘制工具，用 cv2 画关键点（预览用；树莓派无头运行不调用）。
+        if not landmarks:
+            return
+        h, w = bgr_frame.shape[:2]
+        for p in landmarks:
+            cv2.circle(bgr_frame, (int(p.x * w), int(p.y * h)), 3, (0, 255, 0), -1)
 
     def close(self):
         self.pose.close()

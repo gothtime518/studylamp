@@ -1,19 +1,22 @@
 from dataclasses import dataclass
 from typing import Literal
 import os
+import cv2
 import mediapipe as mp
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision
 import numpy as np
 from config import (
     HANDS_MIN_DETECTION_CONFIDENCE,
     HANDS_MIN_TRACKING_CONFIDENCE,
     PHONE_HAND_Y_THRESHOLD,
 )
-
-mp_hands = mp.solutions.hands
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
+from core.mp_models import HAND_MODEL, ensure_model
 
 ActivityState = Literal["studying", "using_phone", "idle", "absent"]
+
+# 手部关键点索引（Tasks API 不再暴露 HandLandmark 枚举，用标准 21 点模型固定索引）
+WRIST = 0
 
 MODEL_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "dataset", "activity_model.pkl"
@@ -24,17 +27,21 @@ MODEL_PATH = os.path.join(
 class ActivityResult:
     state: ActivityState = "absent"
     confidence: float = 0.0
-    hand_landmarks: list = None
+    hand_landmarks: list = None      # Tasks API：list[list[landmark]]，每只手 21 个点
 
 
 class ActivityClassifier:
     def __init__(self):
-        self.hands = mp_hands.Hands(
-            max_num_hands=2,
-            min_detection_confidence=HANDS_MIN_DETECTION_CONFIDENCE,
+        ensure_model(HAND_MODEL)
+        options = vision.HandLandmarkerOptions(
+            base_options=mp_python.BaseOptions(model_asset_path=HAND_MODEL),
+            running_mode=vision.RunningMode.IMAGE,
+            num_hands=2,
+            min_hand_detection_confidence=HANDS_MIN_DETECTION_CONFIDENCE,
             min_tracking_confidence=HANDS_MIN_TRACKING_CONFIDENCE,
-            model_complexity=0,
+            min_hand_presence_confidence=0.5,
         )
+        self.hands = vision.HandLandmarker.create_from_options(options)
         self._model = None
         self._scaler = None
         self._label_inv = None
@@ -58,20 +65,25 @@ class ActivityClassifier:
         if not person_present:
             return ActivityResult(state="absent", confidence=1.0, hand_landmarks=[])
 
-        results = self.hands.process(rgb_frame)
+        mp_image = mp.Image(
+            image_format=mp.ImageFormat.SRGB,
+            data=np.ascontiguousarray(rgb_frame),
+        )
+        result = self.hands.detect(mp_image)
+        # Tasks API：result.hand_landmarks 是 list[list[landmark]]（每只手一组 21 点）
+        hand_lms = result.hand_landmarks or []
 
         # 如果有训练好的模型，优先使用
         if self._model is not None:
-            return self._classify_with_model(results)
+            return self._classify_with_model(hand_lms)
 
-        return self._classify_with_rules(results)
+        return self._classify_with_rules(hand_lms)
 
-    def _classify_with_model(self, results) -> ActivityResult:
-        hand_lms = results.multi_hand_landmarks or []
+    def _classify_with_model(self, hand_lms) -> ActivityResult:
         if not hand_lms:
             feat = np.zeros(63)
         else:
-            lm = hand_lms[0].landmark
+            lm = hand_lms[0]      # 第一只手的 21 个关键点列表
             feat = np.array([[p.x, p.y, p.z] for p in lm]).flatten()
 
         feat_scaled = self._scaler.transform([feat])
@@ -79,14 +91,13 @@ class ActivityClassifier:
         proba = self._model.predict_proba(feat_scaled)[0]
         state = self._label_inv.get(pred, "idle")
         confidence = float(proba[pred])
-        return ActivityResult(state=state, confidence=confidence, hand_landmarks=hand_lms or [])
+        return ActivityResult(state=state, confidence=confidence, hand_landmarks=hand_lms)
 
-    def _classify_with_rules(self, results) -> ActivityResult:
-        if not results.multi_hand_landmarks:
+    def _classify_with_rules(self, hand_lms) -> ActivityResult:
+        if not hand_lms:
             return ActivityResult(state="idle", confidence=0.75, hand_landmarks=[])
 
-        hand_lms = results.multi_hand_landmarks
-        wrist_ys = [h.landmark[mp_hands.HandLandmark.WRIST].y for h in hand_lms]
+        wrist_ys = [h[WRIST].y for h in hand_lms]
         min_wrist_y = min(wrist_ys)
         num_hands = len(hand_lms)
 
@@ -98,15 +109,13 @@ class ActivityClassifier:
         return ActivityResult(state="studying", confidence=confidence, hand_landmarks=hand_lms)
 
     def draw(self, bgr_frame, hand_landmarks):
-        if hand_landmarks:
-            for hand_lm in hand_landmarks:
-                mp_drawing.draw_landmarks(
-                    bgr_frame,
-                    hand_lm,
-                    mp_hands.HAND_CONNECTIONS,
-                    mp_drawing_styles.get_default_hand_landmarks_style(),
-                    mp_drawing_styles.get_default_hand_connections_style(),
-                )
+        # Tasks API 无内置绘制工具，用 cv2 画关键点（预览用；树莓派无头运行不调用）。
+        if not hand_landmarks:
+            return
+        h, w = bgr_frame.shape[:2]
+        for hand_lm in hand_landmarks:
+            for p in hand_lm:
+                cv2.circle(bgr_frame, (int(p.x * w), int(p.y * h)), 3, (255, 0, 0), -1)
 
     def close(self):
         self.hands.close()

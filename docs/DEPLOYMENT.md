@@ -154,14 +154,16 @@ rsync -av --exclude 'node_modules' --exclude '__pycache__' \
 cd ~/studylamp
 python3 -m venv venv && source venv/bin/activate    # 提示符出现 (venv) 即对
 pip install --upgrade pip
-pip install opencv-python numpy websockets
-pip install mediapipe        # 最容易出问题，见下
+pip install -r requirements.txt      # rumps 会按平台自动跳过
 ```
-> **⚠️ mediapipe 装不上**：
-> 1. 确认 64 位：`getconf LONG_BIT` 应输出 `64`（否则重烧 64 位系统）
-> 2. 试指定版本：`pip install mediapipe==0.10.14`
-> 3. 用社区树莓派专用包（搜 "mediapipe raspberry pi wheel" 或 `mediapipe-rpi4`）
-> 4. 实在装不上 → 说明兼容性/性能有限，需回头讨论「更轻的姿态模型」降级方案
+`requirements.txt` 已用环境标记按 Python 版本自动选 mediapipe：Python 3.13（最新系统）装 mediapipe 1.x，≤3.12 装 0.10.x。**代码已统一适配两档**（见 §3.6）。
+
+> **⚠️ mediapipe / Python 版本坑（重要）**：
+> - **Python 3.13（最新树莓派系统 Trixie 自带）**：只有 mediapipe **1.x** 有对应 wheel，而 1.x 删除了旧的 `mp.solutions` 接口、只保留 Tasks API。本项目 `core/posture.py`、`core/activity.py` **已改用 Tasks API**，在 3.13 + mediapipe 1.x 上正常工作。
+> - **Python ≤3.12**：装 mediapipe 0.10.x（Solutions + Tasks 都在），同样能跑。
+> - Tasks API 需要 `.task` 模型文件，仓库已把 `pose_landmarker_lite.task`、`hand_landmarker.task` 打包在 `models/` 目录，**无需联网**；万一缺失，`core/mp_models.py` 会尝试从 Google 下载（国内可能失败，届时按提示手动放置）。
+> - 若装依赖时报某个包（如 numpy/opencv）"no matching distribution"：多半是版本 marker 没覆盖到，改成不带版本号单独装即可：`pip install opencv-python numpy`。
+> - 确认 64 位：`getconf LONG_BIT` 应输出 `64`。
 
 若后端也要跑在树莓派上：`pip install -r server/requirements.txt`。
 
